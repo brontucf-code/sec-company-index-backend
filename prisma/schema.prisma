@@ -1,0 +1,297 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum PublishStatus {
+  DRAFT
+  REVIEW
+  SCHEDULED
+  PUBLISHED
+  ARCHIVED
+}
+
+enum SourceType {
+  MANUAL
+  SEC
+  REGULATOR
+  MARKET_FEED
+  AI
+}
+
+enum JobStatus {
+  QUEUED
+  RUNNING
+  COMPLETED
+  FAILED
+}
+
+model User {
+  id           String      @id @default(cuid())
+  email        String      @unique
+  passwordHash String
+  displayName  String
+  isActive     Boolean     @default(true)
+  roles        UserRole[]
+  auditLogs    AuditLog[]
+  createdAt    DateTime    @default(now())
+  updatedAt    DateTime    @updatedAt
+}
+
+model Role {
+  id          String           @id @default(cuid())
+  name        String           @unique
+  description String?
+  users       UserRole[]
+  permissions RolePermission[]
+}
+
+model Permission {
+  id          String           @id @default(cuid())
+  code        String           @unique
+  description String?
+  roles       RolePermission[]
+}
+
+model UserRole {
+  userId String
+  roleId String
+  user   User   @relation(fields: [userId], references: [id])
+  role   Role   @relation(fields: [roleId], references: [id])
+
+  @@id([userId, roleId])
+}
+
+model RolePermission {
+  roleId       String
+  permissionId String
+  role         Role       @relation(fields: [roleId], references: [id])
+  permission   Permission @relation(fields: [permissionId], references: [id])
+
+  @@id([roleId, permissionId])
+}
+
+model AuditLog {
+  id         String   @id @default(cuid())
+  userId     String?
+  action     String
+  resource   String
+  resourceId String?
+  payload    Json?
+  user       User?    @relation(fields: [userId], references: [id])
+  createdAt  DateTime @default(now())
+}
+
+model Company {
+  id                String       @id @default(cuid())
+  companyName       String
+  shortName         String?
+  slug              String       @unique
+  logo              String?
+  coverImage        String?
+  companyIntro      String?
+  fullDescription   String?
+  foundedDate       DateTime?
+  industry          String?
+  tags              CompanyTag[]
+  officialWebsite   String?
+  contactEmail      String?
+  phone             String?
+  address           String?
+  country           String?
+  state             String?
+  city              String?
+  jurisdiction      String?
+  featuredStatus    Boolean      @default(false)
+  sponsorStatus     Boolean      @default(false)
+  promoLink         String?
+  landingPageUrl    String?
+  priorityScore     Int          @default(0)
+  metaTitle         String?
+  metaDescription   String?
+  keywords          String[]
+  ogImage           String?
+  schemaJson        Json?
+  isPublished       Boolean      @default(false)
+  publishedAt       DateTime?
+  filings           Filing[]
+  articles          Article[]
+  regulations       CompanyRegulation[]
+  createdAt         DateTime     @default(now())
+  updatedAt         DateTime     @updatedAt
+}
+
+model CompanyTag {
+  id        String    @id @default(cuid())
+  companyId String
+  label     String
+  company   Company   @relation(fields: [companyId], references: [id])
+}
+
+model CompanyRegulation {
+  id             String     @id @default(cuid())
+  companyId      String
+  regulatorId    String
+  regulatorType  String?
+  cik            String?
+  crd            String?
+  secLink        String?
+  edgarLink      String?
+  formDLink      String?
+  msbNumber      String?
+  licenseNumber  String?
+  filingStatus   String?
+  filingDate     DateTime?
+  company        Company    @relation(fields: [companyId], references: [id])
+  regulator      Regulator  @relation(fields: [regulatorId], references: [id])
+}
+
+model Article {
+  id               String         @id @default(cuid())
+  title            String
+  subtitle         String?
+  slug             String         @unique
+  category         String
+  content          String
+  summary          String?
+  excerpt          String?
+  featuredImage    String?
+  sourceType       SourceType
+  sourceUrl        String?
+  relatedCompanyId String?
+  relatedCompany   Company?       @relation(fields: [relatedCompanyId], references: [id])
+  relatedRegulator String?
+  author           String?
+  editor           String?
+  language         String         @default("en")
+  tags             String[]
+  aiGenerated      Boolean        @default(false)
+  aiModel          String?
+  publishStatus    PublishStatus  @default(DRAFT)
+  publishedAt      DateTime?
+  updatedAt        DateTime       @updatedAt
+  faqs             ArticleFaq[]
+  createdAt        DateTime       @default(now())
+}
+
+model ArticleFaq {
+  id         String   @id @default(cuid())
+  articleId  String
+  question   String
+  answer     String
+  article    Article  @relation(fields: [articleId], references: [id])
+}
+
+model Regulator {
+  id              String              @id @default(cuid())
+  regulatorName   String
+  regulatorCode   String              @unique
+  country         String
+  regulatorType   String
+  officialWebsite String?
+  searchUrl       String?
+  description     String?
+  logo            String?
+  trustLevel      Int                 @default(0)
+  filings         Filing[]
+  companyLinks    CompanyRegulation[]
+  createdAt       DateTime            @default(now())
+  updatedAt       DateTime            @updatedAt
+}
+
+model Filing {
+  id             String      @id @default(cuid())
+  companyId      String
+  filingType     String
+  regulatorId    String
+  filingNumber   String?
+  cik            String?
+  accessionNumber String?
+  filingUrl      String
+  filingDate     DateTime?
+  status         String?
+  rawText        String?
+  parsedSummary  String?
+  company        Company     @relation(fields: [companyId], references: [id])
+  regulator      Regulator   @relation(fields: [regulatorId], references: [id])
+  documents      FilingDocument[]
+  createdAt      DateTime    @default(now())
+  updatedAt      DateTime    @updatedAt
+}
+
+model FilingDocument {
+  id          String   @id @default(cuid())
+  filingId    String
+  name        String
+  documentUrl String
+  mimeType    String?
+  filing      Filing   @relation(fields: [filingId], references: [id])
+}
+
+model MediaFile {
+  id          String   @id @default(cuid())
+  folder      String?
+  originalUrl String
+  cdnUrl      String?
+  mimeType    String
+  altText     String?
+  width       Int?
+  height      Int?
+  createdAt   DateTime @default(now())
+}
+
+model AiTemplate {
+  id          String   @id @default(cuid())
+  key         String   @unique
+  name        String
+  description String?
+  prompt      String
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+}
+
+model AiJob {
+  id            String    @id @default(cuid())
+  jobType       String
+  status        JobStatus @default(QUEUED)
+  inputPayload  Json
+  outputPayload Json?
+  model         String?
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+}
+
+model FrontendSite {
+  id          String   @id @default(cuid())
+  name        String
+  code        String   @unique
+  baseUrl     String
+  locale      String?
+  isActive    Boolean  @default(true)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+}
+
+model ApiKey {
+  id             String       @id @default(cuid())
+  frontendSiteId String
+  label          String
+  hashedKey      String
+  frontendSite   FrontendSite @relation(fields: [frontendSiteId], references: [id])
+  createdAt      DateTime     @default(now())
+}
+
+model ContentDistributionLog {
+  id             String       @id @default(cuid())
+  frontendSiteId String
+  resourceType   String
+  resourceId     String
+  status         String
+  message        String?
+  frontendSite   FrontendSite @relation(fields: [frontendSiteId], references: [id])
+  createdAt      DateTime     @default(now())
+}
